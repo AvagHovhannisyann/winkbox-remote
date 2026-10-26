@@ -36,7 +36,8 @@ struct PhoneFrame<Content: View>: View {
     }
 }
 
-func render<V: View>(_ view: V, _ name: String) {
+func render<V: View>(_ view: V, _ name: String, height: CGFloat? = nil) {
+    let size = NSSize(width: size.width, height: height ?? size.height)
     let root = PhoneFrame(content: view).frame(width: size.width, height: size.height).environment(\.colorScheme, .dark)
     let host = NSHostingView(rootView: root)
     host.frame = NSRect(origin: .zero, size: size)
@@ -98,7 +99,7 @@ func root(_ tab: RootView.Tab, _ t: TV, _ a: Assistant) -> some View {
     }), "04-voice-done")
     render(root(.voice, tv(connected), assistant(phase: .asking) { a in
         a.transcript = "Open the music"
-        a.question = Assistant.Question(text: "Which one: Spotify, Plex or Kodi?", options: ["Spotify", "Plex", "Kodi"])
+        a.question = Assistant.Question(text: "Which one: Spotify, Plex or Kodi?", options: ["Spotify", "Plex", "Kodi"].map { Assistant.Chip(label: $0, say: $0.lowercased()) })
         a.reply = "Which one: Spotify, Plex or Kodi?"
     }), "05-voice-asking")
     render(root(.voice, tv(connected), assistant(phase: .done(false)) { a in
@@ -106,6 +107,14 @@ func root(_ tab: RootView.Tab, _ t: TV, _ a: Assistant) -> some View {
         a.reply = "Netflix won't play on this box, it isn't certified for it."
         a.alternative = "Try YouTube or Prime Video instead."
     }), "06-voice-error")
+    render(root(.voice, tv(connected), assistant { a in
+        a.lastAction = "play_media"
+        a.transcript = "Play some classic Italian music"
+        a.reply = "Playing Italian Love Songs | Vintage Romance from the Streets of Old Italy"
+        a.favorites = [Assistant.Favorite(name: "Classic italian music", query: "classic italian music"), Assistant.Favorite(name: "Dean Martin", query: "dean martin")]
+        a.routines = ["Movie night"]
+    }), "09-voice-after-music")
+    render(root(.voice, tv(connected), assistant { a in a.tv.awake = false }), "15-standby")
     render(root(.voice, tv(.idle), assistant(link: .needsPairing)), "07-needs-pairing")
     render(root(.voice, tv(.idle), assistant(link: .offline("The request timed out."))), "08-offline")
 
@@ -121,6 +130,10 @@ func root(_ tab: RootView.Tab, _ t: TV, _ a: Assistant) -> some View {
     // Settings and history.
     render(SettingsView().environmentObject(tv(connected)).environmentObject(assistant(link: .needsPairing) { a in a.tv.keySet = false; a.tv.brain = false }), "20-settings-unpaired")
     render(SettingsView().environmentObject(tv(connected)).environmentObject(assistant { a in a.pairing = .enterCode }), "21-settings-pairing")
+    render(SettingsView().environmentObject(tv(connected)).environmentObject(assistant { a in
+        a.favorites = [Assistant.Favorite(name: "Classic italian music", query: "classic italian music"), Assistant.Favorite(name: "Dean Martin", query: "dean martin greatest hits")]
+        a.routines = ["Movie night"]
+    }), "23-settings-all", height: 1900)
     render(HistoryView().environmentObject(assistant { a in
         let now = Date()
         a.entries = [
