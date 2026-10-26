@@ -11,6 +11,35 @@ enum RemoteKey: UInt16 {
     case channelUp = 402, channelDown = 403, info = 358, guide = 362
 }
 
+extension RemoteKey {
+    /// The name the TV's assistant knows this button by.
+    var wire: String {
+        switch self {
+        case .up: return "UP"
+        case .down: return "DOWN"
+        case .left: return "LEFT"
+        case .right: return "RIGHT"
+        case .select: return "SELECT"
+        case .back: return "BACK"
+        case .home: return "HOME"
+        case .menu: return "MENU"
+        case .playPause: return "PLAY_PAUSE"
+        case .next: return "NEXT"
+        case .previous: return "PREVIOUS"
+        case .rewind: return "REWIND"
+        case .fastForward: return "FAST_FORWARD"
+        case .volumeUp: return "VOLUME_UP"
+        case .volumeDown: return "VOLUME_DOWN"
+        case .mute: return "MUTE"
+        case .power: return "POWER"
+        case .channelUp: return "CHANNEL_UP"
+        case .channelDown: return "CHANNEL_DOWN"
+        case .info: return "INFO"
+        case .guide: return "GUIDE"
+        }
+    }
+}
+
 /// An app on the box, launched the way its home screen launches it. Its tile is drawn by `BrandArt`.
 struct TVApp: Identifiable, Hashable {
     let id: String          // package
@@ -59,6 +88,10 @@ final class TV: ObservableObject {
     }
     /// Off only for the Mac preview renderer, which must never connect to the box.
     var autoConnect = true
+
+    /// When set, buttons, typing and app launches go through the paired assistant on the TV (no separate debugging
+    /// approval, and this phone holds no shell-level access itself).
+    var relay: (([String: Any]) -> Void)?
 
     private var adb: ADBConnection?
     private var keys: ADBStream?
@@ -150,11 +183,13 @@ final class TV: ObservableObject {
 
     /// A full press (down and up).
     func press(_ key: RemoteKey) {
+        if let relay { relay(["t": "press", "k": key.wire]); return }
         send(events(key, 1) + events(key, 0))
     }
 
     /// Holding a button: the box repeats arrows and turns a long OK into a long press, like its own remote.
     func hold(_ key: RemoteKey, down: Bool) {
+        if let relay { relay(["t": "hold", "k": key.wire, "d": down]); return }
         send(events(key, down ? 1 : 0))
     }
 
@@ -192,11 +227,15 @@ final class TV: ObservableObject {
         shell.write(command + " >/dev/null 2>&1\n")
     }
 
-    func open(_ app: TVApp) { run(app.command) }
+    func open(_ app: TVApp) {
+        if let relay { relay(["t": "app", "id": app.id]); return }
+        run(app.command)
+    }
 
     /// Types text into the focused field on the TV, after deleting `deleting` characters. `input text` takes ASCII
     /// only; spaces are sent as %s.
     func type(_ text: String, deleting: Int = 0) {
+        if let relay { relay(["t": "type", "text": text, "deleting": deleting]); return }
         var parts: [String] = []
         if deleting > 0 {
             parts.append("input keyevent " + Array(repeating: "67", count: min(deleting, 200)).joined(separator: " "))
@@ -211,5 +250,8 @@ final class TV: ObservableObject {
     }
 
     /// The keyboard's Enter / Search key.
-    func submit() { run("input keyevent 66") }
+    func submit() {
+        if let relay { relay(["t": "submit"]); return }
+        run("input keyevent 66")
+    }
 }

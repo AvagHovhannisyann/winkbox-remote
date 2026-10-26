@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# A newer push replaces a build that is still running, so an older commit can never publish over a newer one.
+concurrency:
+  group: build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-15
