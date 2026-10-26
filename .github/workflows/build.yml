@@ -1,0 +1,43 @@
+name: Build iPhone app
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Draw the app icon
+        run: |
+          mkdir -p App/Icon .build
+          swiftc -O -o .build/icon Tools/icon/main.swift
+          .build/icon App/Icon/AppIcon-1024.png
+          for s in 58:AppIcon29x29@2x 87:AppIcon29x29@3x 80:AppIcon40x40@2x 120:AppIcon40x40@3x 120:AppIcon60x60@2x 180:AppIcon60x60@3x; do
+            sips -z "${s%%:*}" "${s%%:*}" App/Icon/AppIcon-1024.png --out "App/Icon/${s##*:}.png" >/dev/null
+          done
+
+      - name: Build
+        shell: bash
+        run: ./build.sh 2>&1 | tee build.log
+
+      - name: Publish the app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest >/dev/null 2>&1 || gh release create latest --title "Latest build" --notes "WinkBox Remote, built from main. Install WinkRemote.ipa with xtool (see README)."
+          gh release upload latest WinkRemote.ipa build.log --clobber
+
+      - name: Publish the log of a failed build
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view build-log >/dev/null 2>&1 || gh release create build-log --title "Last failed build log" --notes "Log of the last failed build." --prerelease
+          gh release upload build-log build.log --clobber
