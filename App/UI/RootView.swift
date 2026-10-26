@@ -79,6 +79,7 @@ struct RootView: View {
 
 private struct Header: View {
     @EnvironmentObject var tv: TV
+    @EnvironmentObject var assistant: Assistant
     var open: (RootView.Sheet) -> Void
     @State private var confirmPower = false
 
@@ -91,9 +92,16 @@ private struct Header: View {
                 StatusLine()
             }
             Spacer()
-            circleButton("clock.arrow.circlepath", tint: .white) { open(.history) }
-            circleButton("gearshape.fill", tint: .white) { open(.settings) }
-            circleButton("power", tint: .danger) { confirmPower = true }
+            circleButton("clock.arrow.circlepath", tint: .white, label: "History") { open(.history) }
+            circleButton("gearshape.fill", tint: .white, label: "Settings") { open(.settings) }
+            if assistant.tv.awake {
+                circleButton("power", tint: .danger, label: "Turn the TV off") { confirmPower = true }
+            } else {
+                circleButton("power", tint: .live, label: "Wake the TV") {
+                    Haptics.success()
+                    tv.press(.power)
+                }
+            }
         }
         .confirmationDialog("Turn the WinkBox off?", isPresented: $confirmPower, titleVisibility: .visible) {
             Button("Turn Off", role: .destructive) {
@@ -101,11 +109,11 @@ private struct Header: View {
                 tv.press(.power)
             }
         } message: {
-            Text("It goes to standby, the same as its own power button.")
+            Text("It goes to standby. Tap the power button again to wake it.")
         }
     }
 
-    private func circleButton(_ symbol: String, tint: Color, action: @escaping () -> Void) -> some View {
+    private func circleButton(_ symbol: String, tint: Color, label: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.gentle()
             action()
@@ -117,6 +125,7 @@ private struct Header: View {
                 .glass(Circle())
         }
         .buttonStyle(PressScale())
+        .accessibilityLabel(label)
     }
 }
 
@@ -143,7 +152,7 @@ struct StatusLine: View {
 
     private var color: Color {
         switch assistant.link {
-        case .ready: return assistant.tv.adb == "CONNECTED" ? .live : .warn
+        case .ready: return !assistant.tv.awake ? .warn : assistant.tv.adb == "CONNECTED" ? .live : .warn
         case .searching, .connecting, .needsPairing: return .warn
         case .offline: return .danger
         }
@@ -154,7 +163,9 @@ struct StatusLine: View {
         case .searching: return "Looking for your TV\u{2026}"
         case .connecting: return "Connecting\u{2026}"
         case .needsPairing: return "Not paired \u{00B7} open Settings"
-        case .ready: return assistant.tv.adb == "CONNECTED" ? "Connected \u{00B7} WinkBox" : "Approve on the TV"
+        case .ready:
+            if !assistant.tv.awake { return "Standby \u{00B7} tap power" }
+            return assistant.tv.adb == "CONNECTED" ? "Connected \u{00B7} WinkBox" : "Approve on the TV"
         case .offline: return "Offline \u{00B7} tap to retry"
         }
     }
