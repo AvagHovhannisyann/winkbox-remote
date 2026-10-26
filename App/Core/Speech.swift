@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import NaturalLanguage
 import Speech
 
 /// Listens through the iPhone's microphone and turns speech into text, streaming partial results as you talk. The text is
@@ -236,7 +237,13 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
         #endif
         let u = AVSpeechUtterance(string: text)
         let lang = language.replacingOccurrences(of: "_", with: "-")
-        let voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == lang }
+        // Read it in the language it is written in (the model answers in the language you spoke), else in the speech language.
+        var code = String(lang.prefix(2))
+        if let detected = NLLanguageRecognizer.dominantLanguage(for: text), detected != .undetermined {
+            code = detected.rawValue.components(separatedBy: "-").first ?? code
+        }
+        var voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language == lang && lang.hasPrefix(code) }
+        if voices.isEmpty { voices = AVSpeechSynthesisVoice.speechVoices().filter { $0.language.hasPrefix(code) } }
         u.voice = voices.max(by: { $0.quality.rawValue < $1.quality.rawValue }) ?? AVSpeechSynthesisVoice(language: lang)
         u.rate = AVSpeechUtteranceDefaultSpeechRate
         u.preUtteranceDelay = 0.05

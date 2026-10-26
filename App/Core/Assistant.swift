@@ -36,9 +36,20 @@ final class Assistant: ObservableObject {
         }
     }
 
+    /// A tappable suggestion: what it says on the button, and what saying it means.
+    struct Chip: Equatable, Hashable {
+        var label: String
+        var say: String
+    }
+
+    struct Favorite: Equatable, Hashable {
+        var name: String
+        var query: String
+    }
+
     struct Question: Equatable {
         var text: String
-        var options: [String]
+        var options: [Chip]
     }
 
     struct Entry: Identifiable, Equatable {
@@ -56,6 +67,8 @@ final class Assistant: ObservableObject {
         var adb = "UNKNOWN"
         var brain = false
         var keySet = false
+        /// False while the box is in standby; it stays on the network, so the power button can wake it.
+        var awake = true
     }
 
     static let port = 8731
@@ -70,6 +83,9 @@ final class Assistant: ObservableObject {
     @Published var question: Question?
     @Published var entries: [Entry] = []
     @Published var tv = TVStatus()
+    @Published var favorites: [Favorite] = []
+    @Published var routines: [String] = []
+    @Published var lastAction = ""
     @Published var lastMs = 0
     @Published var lastSource = ""
     @Published var notice: String?
@@ -280,7 +296,8 @@ final class Assistant: ObservableObject {
                 link = .needsPairing
             }
         case "status":
-            tv = TVStatus(adb: m["adb"] as? String ?? "UNKNOWN", brain: m["brain"] as? Bool ?? false, keySet: m["keySet"] as? Bool ?? false)
+            tv = TVStatus(adb: m["adb"] as? String ?? "UNKNOWN", brain: m["brain"] as? Bool ?? false, keySet: m["keySet"] as? Bool ?? false,
+                          awake: m["awake"] as? Bool ?? true)
             if link != .ready {
                 link = .ready
                 send(["t": "history", "n": 40])
@@ -325,11 +342,20 @@ final class Assistant: ObservableObject {
             }
         case "result":
             guard (m["id"] as? String) == currentId else { return }
+            let action = m["action"] as? String ?? ""
             finished(ok: m["ok"] as? Bool ?? false, say: m["say"] as? String ?? "", alt: m["alt"] as? String ?? "",
-                     action: m["action"] as? String ?? "", source: m["source"] as? String ?? "", ms: m["ms"] as? Int ?? 0)
+                     action: action, source: m["source"] as? String ?? "",
+                     isAnswer: (m["speak"] as? Bool) ?? (action == "none" || action.isEmpty))
         case "clarify":
             guard (m["id"] as? String) == currentId else { return }
-            asked(text: m["q"] as? String ?? "", options: (m["options"] as? [String]) ?? [])
+            asked(text: m["q"] as? String ?? "", options: Self.chips(m["options"]))
+        case "favorites":
+            favorites = ((m["items"] as? [[String: Any]]) ?? []).compactMap { i in
+                guard let name = i["name"] as? String, let query = i["query"] as? String else { return nil }
+                return Favorite(name: name, query: query)
+            }
+        case "routines":
+            routines = (m["items"] as? [String]) ?? []
         case "history":
             entries = ((m["items"] as? [[String: Any]]) ?? []).compactMap { e in
                 guard let said = e["text"] as? String else { return nil }
@@ -339,7 +365,13 @@ final class Assistant: ObservableObject {
             }.reversed()
         case "timer_fired":
             let label = (m["label"] as? String) ?? ""
-            notice = label.isEmpty ? "Timer done" : "\(label): time's up"
+            switch m["then"] as? String ?? "none" {
+            case "standby": notice = "Going to sleep. Say \u{201C}cancel\u{201D} to stop it"
+            case "pause": notice = "Timer done, paused"
+            case "stop": notice = "Timer done, stopped"
+            case "mute": notice = "Timer done, muted"
+            default: notice = label.isEmpty ? "Timer done" : "\(label): time's up"
+            }
             Haptics.warning()
         case "config_ok":
             tv.brain = m["brain"] as? Bool ?? tv.brain
@@ -349,6 +381,17 @@ final class Assistant: ObservableObject {
         default:
             break
         }
+    }
+
+    /// Choices from the TV: plain words, or {l: label, s: what saying it means}.
+    private static func chips(_ raw: Any?) -> [Chip] {
+        if let objects = raw as? [[String: Any]] {
+            return objects.compactMap { o in
+                guard let label = o["l"] as? String else { return nil }
+                return Chip(label: label, say: (o["s"] as? String) ?? label.lowercased())
+            }
+        }
+        return ((raw as? [String]) ?? []).map { Chip(label: $0, say: $0.lowercased()) }
     }
 
     // MARK: - Pairing
@@ -384,6 +427,7 @@ final class Assistant: ObservableObject {
     }
 
     func forgetThisPhone() {
+        if let id = identity, link == .ready { send(["t": "forget", "deviceId": id.deviceId]) }
         Keychain.delete("identity")
         identity = nil
         link = task == nil ? .searching : .needsPairing
@@ -498,32 +542,32 @@ final class Assistant: ObservableObject {
         send(["t": "listening", "on": false])
     }
 
-    private func finished(ok: Bool, say: String, alt: String, action: String, source: String, ms: Int) {
+    private func finished(ok: Bool, say: String, alt: String, action: String, source: String, isAnswer: Bool) {
         reply = say
         alternative = alt
         lastMs = Int(Date().timeIntervalSince(sentAt) * 1000)
         lastSource = source
+        lastAction = ok ? action : ""
         phase = .done(ok)
         entries.insert(Entry(id: currentId ?? UUID().uuidString, said: transcript, reply: say, ok: ok, action: action, ms: lastMs, source: source, at: Date()), at: 0)
         if ok { Haptics.success() } else { Haptics.warning() }
-        let isAnswer = action == "none" || action.isEmpty
         if speakMode == .always || (speakMode == .answers && (isAnswer || !ok)) {
-            speak(say + (alt.isEmpty ? "" : " " + alt))
+            speak(say + (alt.isEmpty ? "" : " " + alt), showing: ok)    // a failure keeps its red orb while it is read out
         } else {
             scheduleIdle(after: 4)
         }
     }
 
-    private func asked(text: String, options: [String]) {
+    private func asked(text: String, options: [Chip]) {
         question = Question(text: text, options: options)
         reply = text
         phase = .asking
         Haptics.gentle()
-        if speakMode != .off { speak(text) } else if options.isEmpty { startListening(answering: true) }
+        if speakMode != .off { speak(text, showing: false) } else if options.isEmpty { startListening(answering: true) }
     }
 
-    private func speak(_ text: String) {
-        phase = question == nil ? .speaking : phase
+    private func speak(_ text: String, showing: Bool) {
+        if showing && question == nil { phase = .speaking }
         voice.speak(text, language: language)
     }
 
@@ -532,6 +576,8 @@ final class Assistant: ObservableObject {
             startListening(answering: true)         // the TV asked an open question: listen for the answer
         } else if phase == .speaking {
             scheduleIdle(after: 1.5)
+        } else if case .done = phase {
+            scheduleIdle(after: 2.5)
         }
     }
 

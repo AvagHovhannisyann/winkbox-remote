@@ -54,30 +54,41 @@ struct PairedIdentity: Codable, Equatable {
 
 enum Keychain {
     private static let service = "com.winkbox.remote"
+    /// The Mac test program (Tools/protocol) is built with -D WB_NO_KEYCHAIN so it never triggers a Keychain prompt.
+    #if WB_NO_KEYCHAIN
+    private static let useKeychain = false
+    #else
+    private static let useKeychain = true
+    #endif
 
     static func save(_ data: Data, for account: String) {
         let base: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                    kSecAttrAccount as String: account]
-        SecItemDelete(base as CFDictionary)
-        var add = base
-        add[kSecValueData as String] = data
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        if SecItemAdd(add as CFDictionary, nil) != errSecSuccess {
-            UserDefaults.standard.set(data, forKey: "kc." + account)   // sideloaded builds can lack Keychain entitlements
+        if useKeychain {
+            SecItemDelete(base as CFDictionary)
+            var add = base
+            add[kSecValueData as String] = data
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            if SecItemAdd(add as CFDictionary, nil) == errSecSuccess { return }
         }
+        UserDefaults.standard.set(data, forKey: "kc." + account)   // sideloaded builds can lack Keychain entitlements
     }
 
     static func load(_ account: String) -> Data? {
-        let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                                kSecAttrAccount as String: account, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
-        var out: AnyObject?
-        if SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data { return d }
+        if useKeychain {
+            let q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                                    kSecAttrAccount as String: account, kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
+            var out: AnyObject?
+            if SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data { return d }
+        }
         return UserDefaults.standard.data(forKey: "kc." + account)
     }
 
     static func delete(_ account: String) {
-        SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-                       kSecAttrAccount as String: account] as CFDictionary)
+        if useKeychain {
+            SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
+                           kSecAttrAccount as String: account] as CFDictionary)
+        }
         UserDefaults.standard.removeObject(forKey: "kc." + account)
     }
 }
