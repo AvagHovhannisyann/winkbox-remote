@@ -1,0 +1,5 @@
+.build/
+.stage/
+sdk/
+*.ipa
+App/Icon/
