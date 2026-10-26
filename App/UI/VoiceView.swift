@@ -129,7 +129,9 @@ struct VoiceView: View {
         case "timer": return "Setting the timer"
         case "open_setting": return "Opening settings"
         case "power": return "Power"
-        case "play_music": return "Finding your music"
+        case "play_media": return "Finding it on YouTube"
+        case "favorites": return "Checking your favorites"
+        case "routine": return "Running your routine"
         default: return "Working on it"
         }
     }
@@ -168,7 +170,7 @@ struct VoiceView: View {
 
     @ViewBuilder
     private var chips: some View {
-        let items: [String] = chipItems
+        let items: [Assistant.Chip] = chipItems
         if !items.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -177,7 +179,7 @@ struct VoiceView: View {
                             Haptics.press()
                             tapped(item)
                         } label: {
-                            Text(item)
+                            Text(item.label)
                                 .font(.rounded(15, .semibold))
                                 .foregroundColor(.white.opacity(0.9))
                                 .padding(.horizontal, 16)
@@ -193,18 +195,39 @@ struct VoiceView: View {
         }
     }
 
-    private var chipItems: [String] {
+    private func chip(_ label: String, _ say: String? = nil) -> Assistant.Chip {
+        Assistant.Chip(label: label, say: say ?? label.lowercased())
+    }
+
+    /// What to offer next: the answer to a question, a way out while working, follow-ups to what just happened, or your own shortcuts.
+    private var chipItems: [Assistant.Chip] {
         guard assistant.link == .ready else { return [] }
         switch assistant.phase {
         case .asking: return assistant.question?.options ?? []
-        case .thinking, .acting: return ["Cancel"]
+        case .thinking, .acting: return [chip("Cancel")]
         case .listening: return []
-        default: return ["Volume 30", "Pause", "Mute", "Open YouTube", "Timer 10 minutes", "Go home"]
+        default: break
         }
+        var items: [Assistant.Chip] = []
+        switch assistant.lastAction {
+        case "play_media", "favorites", "routine", "media":
+            items = [chip("Pause"), chip("Next"), chip("Louder"), chip("Quieter"), chip("Add to favorites", "add this to my favorites"), chip("Stop")]
+        case "volume":
+            items = [chip("Louder"), chip("Quieter"), chip("Mute"), chip("Unmute")]
+        case "timer":
+            items = [chip("Timers", "what timers do i have"), chip("Cancel timer")]
+        default:
+            break
+        }
+        let mine = assistant.favorites.map { chip("\u{2665} " + $0.name, "play my " + $0.name) }
+            + assistant.routines.map { chip("\u{25B6} " + $0, "run my " + $0 + " routine") }
+        let basics = [chip("Volume 30"), chip("Pause"), chip("Mute"), chip("Open YouTube"), chip("Timer 10 minutes"), chip("Go home")]
+        var seen = Set<Assistant.Chip>()
+        return (items + mine + basics).filter { seen.insert($0).inserted }
     }
 
-    private func tapped(_ item: String) {
-        if item == "Cancel" { assistant.cancelRequest() } else { assistant.say(item.lowercased()) }
+    private func tapped(_ item: Assistant.Chip) {
+        if item.label == "Cancel" { assistant.cancelRequest() } else { assistant.say(item.say) }
     }
 }
 

@@ -170,6 +170,22 @@ struct AssistantSettingsSection: View {
                 .tint(.white)
                 note("Speech is turned into text on your iPhone, on the device itself when your language supports it. Only the words go to the TV.")
             }
+            card("Favorites") {
+                if assistant.favorites.isEmpty {
+                    note("Play something, then say \u{201C}add this to my favorites\u{201D}. Favorites become buttons on the Voice screen.")
+                }
+                ForEach(assistant.favorites, id: \.self) { f in
+                    listRow(f.name, detail: f.query) { assistant.say("remove \(f.name) from my favorites") }
+                }
+            }
+            card("Routines") {
+                if assistant.routines.isEmpty {
+                    note("A routine is a list of things to do in order. Tell the assistant: \u{201C}make a routine called movie night that mutes the TV and opens Plex\u{201D}.")
+                }
+                ForEach(assistant.routines, id: \.self) { r in
+                    listRow(r, detail: "Say \u{201C}run my \(r) routine\u{201D}") { assistant.say("delete the \(r) routine") }
+                }
+            }
         }
     }
 
@@ -219,6 +235,24 @@ struct AssistantSettingsSection: View {
             Spacer()
             Circle().fill(color).frame(width: 8, height: 8)
             Text(value).font(.rounded(15)).foregroundColor(.white.opacity(0.65))
+        }
+    }
+
+    private func listRow(_ title: String, detail: String, remove: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.rounded(16, .semibold)).foregroundColor(.white).lineLimit(1)
+                Text(detail).font(.rounded(13)).foregroundColor(.white.opacity(0.5)).lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button {
+                Haptics.warning()
+                remove()
+            } label: {
+                Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(.white.opacity(0.35))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(title)")
         }
     }
 
