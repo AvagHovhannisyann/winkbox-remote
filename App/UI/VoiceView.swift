@@ -8,6 +8,8 @@ struct VoiceView: View {
     @State private var pressStart: Date?
     @State private var pressedPhase: Assistant.Phase = .idle
     @State private var hintIndex = 0
+    @State private var draft = ""
+    @FocusState private var typing: Bool
 
     private let hints = ["play some classic Italian music", "set a timer for ten minutes", "turn the volume to thirty",
                          "open YouTube", "pause", "what time is it", "mute it and set a timer for five minutes"]
@@ -26,6 +28,9 @@ struct VoiceView: View {
                 .padding(.top, 14)
                 .padding(.horizontal, 22)
             Spacer(minLength: 4)
+            askBar
+                .padding(.horizontal, 22)
+                .padding(.bottom, 10)
             chips
                 .padding(.bottom, 10)
         }
@@ -193,6 +198,40 @@ struct VoiceView: View {
             }
             .transition(.opacity)
         }
+    }
+
+    /// Type a request instead of saying it: quiet rooms, and languages the phone can't recognise (the model reads any of them).
+    private var askBar: some View {
+        HStack(spacing: 10) {
+            TextField("Or type a request", text: $draft)
+                .textFieldStyle(.plain)
+                .font(.rounded(16, .medium))
+                .foregroundColor(.white)
+                .focused($typing)
+                .submitLabel(.send)
+                .onSubmit(sendDraft)
+            Button(action: sendDraft) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 26))
+                    .foregroundColor(draft.trimmingCharacters(in: .whitespaces).isEmpty ? Color.white.opacity(0.25) : Color.accent)
+            }
+            .buttonStyle(.plain)
+            .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || assistant.link != .ready)
+            .accessibilityLabel("Send")
+        }
+        .padding(.leading, 18)
+        .padding(.trailing, 8)
+        .frame(height: 46)
+        .glass(Capsule())
+    }
+
+    private func sendDraft() {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, assistant.link == .ready else { return }
+        draft = ""
+        typing = false
+        Haptics.press()
+        assistant.say(text)
     }
 
     private func chip(_ label: String, _ say: String? = nil) -> Assistant.Chip {
