@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>2.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>2</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>iPhoneOS</string>
@@ -49,7 +49,20 @@
 	<key>MinimumOSVersion</key>
 	<string>16.0</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>WinkBox Remote talks to your WinkBox on your home Wi-Fi to send it remote-control presses.</string>
+	<string>WinkBox Remote talks to your WinkBox on your home Wi-Fi to send it your requests and remote-control presses.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>WinkBox Remote listens when you tap the microphone, so you can talk to your TV.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>What you say is turned into text on your iPhone (by Apple), and only the words are sent to your TV.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_winkbox._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
