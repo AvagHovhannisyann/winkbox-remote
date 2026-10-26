@@ -163,3 +163,14 @@ struct RoundKey: View {
         }
     }
 }
+
+/// iPhone text-entry hints that don't exist in the Mac preview build.
+extension View {
+    @ViewBuilder func numberPad(oneTimeCode: Bool = false) -> some View {
+        #if os(iOS)
+        if oneTimeCode { keyboardType(.numberPad).textContentType(.oneTimeCode) } else { keyboardType(.decimalPad) }
+        #else
+        self
+        #endif
+    }
+}

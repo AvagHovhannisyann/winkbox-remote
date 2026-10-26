@@ -2,10 +2,11 @@ import SwiftUI
 
 struct RootView: View {
     enum Tab: String, CaseIterable {
-        case remote = "Remote", apps = "Apps", type = "Type"
+        case voice = "Voice", remote = "Remote", apps = "Apps", type = "Type"
 
         var symbol: String {
             switch self {
+            case .voice: return "waveform"
             case .remote: return "appletvremote.gen4.fill"
             case .apps: return "square.grid.2x2.fill"
             case .type: return "keyboard"
@@ -14,11 +15,17 @@ struct RootView: View {
     }
 
     @EnvironmentObject var tv: TV
+    @EnvironmentObject var assistant: Assistant
     @State private var tab: Tab
-    @State private var showSettings = false
+    @State private var sheet: Sheet?
     @Environment(\.scenePhase) private var phase
 
-    init(tab: Tab = .remote) {
+    enum Sheet: String, Identifiable {
+        case settings, history
+        var id: String { rawValue }
+    }
+
+    init(tab: Tab = .voice) {
         _tab = State(initialValue: tab)
     }
 
@@ -26,11 +33,12 @@ struct RootView: View {
         ZStack {
             Backdrop()
             VStack(spacing: 0) {
-                Header(showSettings: $showSettings)
+                Header(open: { sheet = $0 })
                     .padding(.horizontal, 22)
                     .padding(.top, 6)
                 ZStack {
                     switch tab {
+                    case .voice: VoiceView(speech: assistant.speech)
                     case .remote: RemoteView()
                     case .apps: AppsView()
                     case .type: KeyboardView()
@@ -40,31 +48,38 @@ struct RootView: View {
                 TabBar(tab: $tab)
                     .padding(.bottom, 4)
             }
-            StatusOverlay(showSettings: $showSettings)
+            StatusOverlay(open: { sheet = $0 })
+            Banner()
         }
-        .sheet(isPresented: $showSettings) {
-            SettingsView().environmentObject(tv)
-        }
-        .onAppear {
-            if tv.autoConnect, !tv.isConnected { tv.connect() }
-        }
-        .onChange(of: phase) { phase in
-            guard tv.autoConnect else { return }
-            switch phase {
-            case .active:
-                if !tv.isConnected { tv.connect() }
-            case .background:
-                tv.disconnect()
-            default:
-                break
+        .sheet(item: $sheet) { which in
+            switch which {
+            case .settings: SettingsView().environmentObject(tv).environmentObject(assistant)
+            case .history: HistoryView().environmentObject(assistant)
             }
         }
+        .onAppear {
+            assistant.start()
+            wireRelay()
+        }
+        .onChange(of: assistant.link) { _ in wireRelay() }
+        .onChange(of: phase) { phase in
+            switch phase {
+            case .active: assistant.start()
+            case .background: assistant.stop()
+            default: break
+            }
+        }
+    }
+
+    /// Buttons, typing and app launches go through the paired assistant whenever it is connected.
+    private func wireRelay() {
+        tv.relay = assistant.link == .ready ? { [weak assistant] obj in Task { @MainActor [weak assistant] in assistant?.sendRaw(obj) } } : nil
     }
 }
 
 private struct Header: View {
     @EnvironmentObject var tv: TV
-    @Binding var showSettings: Bool
+    var open: (RootView.Sheet) -> Void
     @State private var confirmPower = false
 
     var body: some View {
@@ -76,7 +91,8 @@ private struct Header: View {
                 StatusLine()
             }
             Spacer()
-            circleButton("gearshape.fill", tint: .white) { showSettings = true }
+            circleButton("clock.arrow.circlepath", tint: .white) { open(.history) }
+            circleButton("gearshape.fill", tint: .white) { open(.settings) }
             circleButton("power", tint: .danger) { confirmPower = true }
         }
         .confirmationDialog("Turn the WinkBox off?", isPresented: $confirmPower, titleVisibility: .visible) {
@@ -105,11 +121,11 @@ private struct Header: View {
 }
 
 struct StatusLine: View {
-    @EnvironmentObject var tv: TV
+    @EnvironmentObject var assistant: Assistant
 
     var body: some View {
         Button {
-            if case .failed = tv.status { tv.connect() }
+            if case .offline = assistant.link { assistant.retryNow() }
         } label: {
             HStack(spacing: 7) {
                 Circle()
@@ -126,20 +142,20 @@ struct StatusLine: View {
     }
 
     private var color: Color {
-        switch tv.status {
-        case .connected: return .live
-        case .connecting, .needsApproval, .idle: return .warn
-        case .failed: return .danger
+        switch assistant.link {
+        case .ready: return assistant.tv.adb == "CONNECTED" ? .live : .warn
+        case .searching, .connecting, .needsPairing: return .warn
+        case .offline: return .danger
         }
     }
 
     private var text: String {
-        switch tv.status {
-        case .idle: return "Not connected"
-        case .connecting: return "Connecting…"
-        case .needsApproval: return "Allow on your TV"
-        case .connected(let name): return "Connected · \(name)"
-        case .failed: return "Offline · tap to retry"
+        switch assistant.link {
+        case .searching: return "Looking for your TV\u{2026}"
+        case .connecting: return "Connecting\u{2026}"
+        case .needsPairing: return "Not paired \u{00B7} open Settings"
+        case .ready: return assistant.tv.adb == "CONNECTED" ? "Connected \u{00B7} WinkBox" : "Approve on the TV"
+        case .offline: return "Offline \u{00B7} tap to retry"
         }
     }
 }
@@ -174,7 +190,7 @@ private struct TabBar: View {
             }
         }
         .foregroundColor(fg)
-        .padding(.horizontal, selected ? 20 : 18)
+        .padding(.horizontal, selected ? 18 : 15)
         .frame(height: 46)
         .background {
             if selected {
@@ -184,26 +200,29 @@ private struct TabBar: View {
     }
 }
 
-/// Explains what to do when the TV asks to allow the app, or when the box can't be reached.
+/// What to do when the TV can't be reached or the phone isn't paired yet.
 private struct StatusOverlay: View {
-    @EnvironmentObject var tv: TV
-    @Binding var showSettings: Bool
+    @EnvironmentObject var assistant: Assistant
+    var open: (RootView.Sheet) -> Void
 
     var body: some View {
         VStack {
             Spacer()
-            switch tv.status {
-            case .needsApproval:
-                card(symbol: "tv.inset.filled", tint: .warn, title: "Allow on your TV",
-                     text: "Your TV asks “Allow USB debugging?”. Tick “Always allow from this computer”, then choose OK with the TV remote.") {
-                    EmptyView()
+            switch assistant.link {
+            case .needsPairing:
+                card(symbol: "lock.shield.fill", tint: .warn, title: "Pair with your TV",
+                     text: "Your TV will show a 6-digit code. Enter it here once, and only this phone can control it.") {
+                    pill("Pair now", filled: true) {
+                        open(.settings)
+                        assistant.beginPairing()
+                    }
                 }
-            case .failed(let why):
-                card(symbol: "wifi.exclamationmark", tint: .danger, title: "Can't reach your WinkBox",
-                     text: "\(why) Check the iPhone is on the home Wi-Fi and the box is on.") {
+            case .offline:
+                card(symbol: "wifi.exclamationmark", tint: .danger, title: "Can't reach your TV",
+                     text: "Check the TV is on and this phone is on the same Wi-Fi. If its address changed, set it in Settings.") {
                     HStack(spacing: 10) {
-                        pill("Try again", filled: true) { tv.connect() }
-                        pill("Address", filled: false) { showSettings = true }
+                        pill("Try again", filled: true) { assistant.retryNow() }
+                        pill("Settings", filled: false) { open(.settings) }
                     }
                 }
             default:
@@ -212,7 +231,7 @@ private struct StatusOverlay: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 74)
-        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: tv.status)
+        .animation(.spring(response: 0.45, dampingFraction: 0.85), value: assistant.link)
     }
 
     private func card<Actions: View>(symbol: String, tint: Color, title: String, text: String,
@@ -252,6 +271,35 @@ private struct StatusOverlay: View {
                 .background(Capsule().fill(filled ? Color.white : Color.white.opacity(0.12)))
         }
         .buttonStyle(PressScale())
+    }
+}
+
+/// A short message from the TV (a timer going off, a setting saved), shown at the top for a few seconds.
+private struct Banner: View {
+    @EnvironmentObject var assistant: Assistant
+
+    var body: some View {
+        VStack {
+            if let n = assistant.notice {
+                HStack(spacing: 10) {
+                    Image(systemName: "bell.fill").font(.system(size: 14, weight: .bold)).foregroundColor(.accent)
+                    Text(n).font(.rounded(15, .semibold)).foregroundColor(.white)
+                }
+                .padding(.horizontal, 18)
+                .frame(height: 44)
+                .glass(Capsule())
+                .shadow(color: .black.opacity(0.4), radius: 14, y: 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .task(id: n) {
+                    try? await Task.sleep(nanoseconds: 4_000_000_000)
+                    assistant.notice = nil
+                }
+            }
+            Spacer()
+        }
+        .padding(.top, 8)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: assistant.notice)
+        .allowsHitTesting(false)
     }
 }
 

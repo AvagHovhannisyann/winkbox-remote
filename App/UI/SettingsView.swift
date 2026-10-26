@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var tv: TV
+    @EnvironmentObject var assistant: Assistant
     @Environment(\.dismiss) private var dismiss
     @State private var host = ""
 
@@ -19,6 +20,8 @@ struct SettingsView: View {
                             .foregroundColor(.accent)
                     }
 
+                    AssistantSettingsSection()
+
                     section("WinkBox address") {
                         HStack(spacing: 12) {
                             TextField("192.168.1.8", text: $host)
@@ -26,11 +29,12 @@ struct SettingsView: View {
                                 .font(.rounded(20, .medium))
                                 .foregroundColor(.white)
                                 .disableAutocorrection(true)
-                                .numbersKeyboard()
+                                .numberPad()
                             Button {
                                 Haptics.press()
-                                tv.host = host.trimmingCharacters(in: .whitespaces)
-                                tv.connect()
+                                assistant.host = host.trimmingCharacters(in: .whitespaces)
+                                assistant.stop()
+                                assistant.start()
                                 dismiss()
                             } label: {
                                 Text("Connect")
@@ -42,30 +46,19 @@ struct SettingsView: View {
                             }
                             .buttonStyle(PressScale())
                         }
-                        Text("Shown on the TV in Settings → Network. The box keeps it unless the router changes it.")
+                        Text("Found automatically on your Wi-Fi. Only needed if your router blocks that. The address is on the TV in Settings \u{2192} Network.")
                             .font(.rounded(13))
                             .foregroundColor(.white.opacity(0.5))
                     }
 
-                    section("Status") {
-                        StatusLine()
-                    }
-
-                    section("First connection") {
-                        Text("The TV asks “Allow USB debugging?” the first time. Tick “Always allow from this computer” and choose OK with the TV remote. If you chose Cancel, open the app again to get the question back.")
-                            .font(.rounded(14))
-                            .foregroundColor(.white.opacity(0.7))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
                     section("How it works") {
-                        Text("The app talks to the box directly over your Wi-Fi, through the debugging connection the box has switched on (ADB, port 5555). Button presses go straight into the box's own remote-control input, so they arrive instantly. Nothing goes through the internet.")
+                        Text("Everything runs on the TV. This phone listens, turns your speech into text, and sends the words over your Wi-Fi to the assistant on the TV, which decides what to do and does it. Buttons and typing go the same way. Nothing goes through a computer.")
                             .font(.rounded(14))
                             .foregroundColor(.white.opacity(0.7))
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Text("WinkBox Remote 1.0")
+                    Text("WinkBox Remote 2.0")
                         .font(.rounded(12, .medium))
                         .foregroundColor(.white.opacity(0.35))
                         .frame(maxWidth: .infinity)
@@ -73,7 +66,7 @@ struct SettingsView: View {
                 .padding(22)
             }
         }
-        .onAppear { host = tv.host }
+        .onAppear { host = assistant.host }
         .preferredColorScheme(.dark)
     }
 
@@ -87,16 +80,5 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .glass(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
-    }
-}
-
-extension View {
-    @ViewBuilder
-    func numbersKeyboard() -> some View {
-        #if os(iOS)
-        keyboardType(.decimalPad)
-        #else
-        self
-        #endif
     }
 }
