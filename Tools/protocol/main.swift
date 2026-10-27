@@ -70,6 +70,17 @@ func check(_ what: String, _ ok: Bool, _ detail: String = "") {
     if let r = await ask(a, "tell me a joke") {
         check("needs-the-brain request is refused politely without a key", !r.ok && r.reply.lowercased().contains("api key"), "\(r.reply)")
     } else { check("needs-the-brain request", false, "no answer") }
+    if let r = await ask(a, "what are my favorites") { check("a spoken answer is flagged to be read aloud", r.ok && r.reply.lowercased().contains("favorites"), "\(r.reply)") }
+    else { check("favorites question", false, "no answer") }
+    check("the TV pushed its favorites and routines lists", await until(3) { true } && a.favorites.isEmpty && a.routines.isEmpty)
+    check("TV reports awake", a.tv.awake)
+    a.say("turn off the tv in 30 seconds")
+    check("a risky request asks first, with Yes and No choices", await until(10) { a.phase == .asking && a.question?.options.map(\.label) == ["Yes", "No"] },
+          "\(a.phase) \(a.question?.options.map(\.label) ?? [])")
+    if let q = a.question, let no = q.options.last { if let r = await ask(a, no.say) { check("answering No cancels it", r.reply.contains("cancelled"), "\(r.reply)") } }
+    if let r = await ask(a, "what timers do i have") { check("no timer was left behind", r.reply.contains("No timers"), "\(r.reply)") }
+    a.clearHistory()
+    check("history can be cleared", await until(3) { a.entries.isEmpty })
     a.sendRaw(["t": "press", "k": "VOLUME_DOWN"])
     try? await Task.sleep(nanoseconds: 500_000_000)
     a.sendRaw(["t": "press", "k": "VOLUME_UP"])
