@@ -2,30 +2,38 @@ import SwiftUI
 import Speech
 
 /// The one-time pairing with the TV: it shows a 6-digit code that only someone in front of the TV can read.
+/// Sits in one row of the Settings list, so every button in it is borderless (a list row with plain buttons fires them all).
 struct PairingCard: View {
     @EnvironmentObject var assistant: Assistant
     @State private var code = ""
     @FocusState private var focused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 12) {
             switch assistant.pairing {
             case .none:
                 if assistant.isPaired {
-                    Label("Paired with your TV", systemImage: "checkmark.seal.fill").font(.rounded(17, .semibold)).foregroundColor(.live)
-                    Text("Only phones you've paired can talk to the assistant.")
-                        .font(.rounded(14)).foregroundColor(.white.opacity(0.6))
-                    pill("Forget this phone", filled: false) { assistant.forgetThisPhone() }
+                    Label("Paired with your TV", systemImage: "checkmark.seal.fill").font(.body.weight(.semibold)).foregroundStyle(Color.live)
+                    Text("Only phones you\u{2019}ve paired can talk to the assistant.").font(.subheadline).foregroundStyle(.secondary)
+                    Button("Forget This Phone", role: .destructive) {
+                        Haptics.warning()
+                        assistant.forgetThisPhone()
+                    }
                 } else {
                     Text("Pair this phone with your TV so only you can control it.")
-                        .font(.rounded(15)).foregroundColor(.white.opacity(0.75)).fixedSize(horizontal: false, vertical: true)
-                    pill("Show a code on the TV", filled: true) { assistant.beginPairing() }
-                        .disabled(!assistant.canReach)
+                        .font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    Button {
+                        Haptics.press()
+                        assistant.beginPairing()
+                    } label: {
+                        Label("Show a Code on the TV", systemImage: "number.square")
+                    }
+                    .disabled(!assistant.canReach)
                 }
             case .requesting:
-                Text("Asking the TV for a code\u{2026}").font(.rounded(15)).foregroundColor(.white.opacity(0.7))
+                HStack(spacing: 10) { ProgressView(); Text("Asking the TV for a code\u{2026}").foregroundStyle(.secondary) }
             case .enterCode:
-                Text("Enter the 6-digit code on your TV").font(.rounded(15, .semibold)).foregroundColor(.white)
+                Text("Enter the 6-digit code on your TV").font(.body.weight(.semibold))
                 digits
                 TextField("", text: $code)
                     .numberPad(oneTimeCode: true)
@@ -41,51 +49,40 @@ struct PairingCard: View {
                         }
                     }
                     .onAppear { focused = true }
-                pill("Cancel", filled: false) { assistant.cancelPairing() }
+                Button("Cancel") { assistant.cancelPairing() }
             case .verifying:
-                Text("Checking\u{2026}").font(.rounded(15)).foregroundColor(.white.opacity(0.7))
+                HStack(spacing: 10) { ProgressView(); Text("Checking\u{2026}").foregroundStyle(.secondary) }
             }
             if let e = assistant.pairingError {
-                Text(e).font(.rounded(13, .medium)).foregroundColor(.danger).fixedSize(horizontal: false, vertical: true)
+                Text(e).font(.footnote.weight(.medium)).foregroundStyle(Color.danger).fixedSize(horizontal: false, vertical: true)
             }
         }
+        .buttonStyle(.borderless)
+        .padding(.vertical, 4)
         .animation(.easeOut(duration: 0.2), value: assistant.pairing)
     }
 
+    /// Six boxes, like the iPhone's own verification codes.
     private var digits: some View {
         HStack(spacing: 8) {
             ForEach(0..<6, id: \.self) { i in
                 let ch = i < code.count ? String(Array(code)[i]) : ""
                 Text(ch)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .frame(width: 44, height: 56)
-                    .glass(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(i == code.count ? Color.accent : .clear, lineWidth: 2))
+                    .font(.system(size: 26, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .frame(width: 42, height: 54)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.08)))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(i == code.count ? Color.accentColor : Color.white.opacity(0.1), lineWidth: i == code.count ? 2 : 1))
+                if i == 2 { Capsule().fill(.secondary).frame(width: 9, height: 3) }
             }
         }
         .contentShape(Rectangle())
         .onTapGesture { focused = true }
     }
-
-    private func pill(_ title: String, filled: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.press()
-            action()
-        } label: {
-            Text(title)
-                .font(.rounded(15, .semibold))
-                .foregroundColor(filled ? .black : .white)
-                .padding(.horizontal, 18)
-                .frame(height: 40)
-                .background(Capsule().fill(filled ? Color.white : Color.white.opacity(0.12)))
-        }
-        .buttonStyle(PressScale())
-    }
 }
 
-/// Everything about the assistant that you can change.
+/// Everything about the assistant that you can change, as sections of the Settings list.
 struct AssistantSettingsSection: View {
     @EnvironmentObject var assistant: Assistant
     @State private var apiKey = ""
@@ -96,95 +93,120 @@ struct AssistantSettingsSection: View {
     private let efforts: [(String, String)] = [("Low", "low"), ("Medium", "medium"), ("High", "high")]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            card("Voice assistant") {
-                row("TV link", linkText, linkColor)
-                row("TV control", controlText, assistant.tv.adb == "CONNECTED" ? .live : .warn)
-                row("Assistant brain", assistant.tv.brain ? "Ready" : "Needs an API key", assistant.tv.brain ? .live : .warn)
+        Group {
+            Section {
+                status("TV link", symbol: "wifi", tint: .blue, value: linkText, color: linkColor)
+                status("TV control", symbol: "appletvremote.gen4.fill", tint: Color(hex: 0x8E8E93), value: controlText,
+                       color: assistant.tv.adb == "CONNECTED" ? .live : .warn)
+                status("Assistant", symbol: "sparkles", tint: Color(hex: 0xBF5AF2), value: assistant.tv.brain ? "Ready" : "Needs an API key",
+                       color: assistant.tv.brain ? .live : .warn)
+            } header: {
+                Text("Voice Assistant")
+            } footer: {
                 if assistant.tv.adb == "WAITING_APPROVAL" {
-                    note("Your TV is asking \u{201C}Allow USB debugging?\u{201D} for WinkBox Assistant. Tick \u{201C}Always allow\u{201D} and choose OK with the TV remote.")
+                    Text("Your TV is asking \u{201C}Allow USB debugging?\u{201D} for WinkBox Assistant. Tick \u{201C}Always allow\u{201D} and choose OK with the TV remote.")
                 }
             }
-            card("Pairing") { PairingCard() }
-            card("Anthropic API key") {
+
+            Section {
+                PairingCard()
+            } header: {
+                Text("Pairing")
+            }
+
+            Section {
                 HStack(spacing: 10) {
                     Group {
                         if showKey { TextField("sk-ant-\u{2026}", text: $apiKey) } else { SecureField("sk-ant-\u{2026}", text: $apiKey) }
                     }
-                    .textFieldStyle(.plain)
-                    .font(.rounded(17, .medium))
-                    .foregroundColor(.white)
                     .disableAutocorrection(true)
                     .noAutocapitalization()
                     Button { showKey.toggle() } label: {
-                        Image(systemName: showKey ? "eye.slash" : "eye").foregroundColor(.white.opacity(0.6))
+                        Image(systemName: showKey ? "eye.slash" : "eye").foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(showKey ? "Hide the key" : "Show the key")
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 48)
-                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.08)))
-                HStack {
-                    pill("Save to TV", filled: true) {
-                        assistant.saveAPIKey(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
-                        apiKey = ""
-                        showKey = false
-                    }
-                    .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty || !assistant.isPaired || assistant.link != .ready)
-                    if assistant.tv.keySet {
-                        pill("Remove from TV", filled: false) { assistant.saveAPIKey("") }.disabled(assistant.link != .ready)
-                    }
+                Button("Save to TV") {
+                    Haptics.press()
+                    assistant.saveAPIKey(apiKey.trimmingCharacters(in: .whitespacesAndNewlines))
+                    apiKey = ""
+                    showKey = false
                 }
-                note("The key travels to your TV encrypted, is stored there, and is never kept on this phone or written to any log.")
+                .disabled(apiKey.trimmingCharacters(in: .whitespaces).isEmpty || !assistant.isPaired || assistant.link != .ready)
+                if assistant.tv.keySet {
+                    Button("Remove from TV", role: .destructive) {
+                        Haptics.warning()
+                        assistant.saveAPIKey("")
+                    }
+                    .disabled(assistant.link != .ready)
+                }
+            } header: {
+                Text("Anthropic API Key")
+            } footer: {
+                Text("The key travels to your TV encrypted, is stored there, and is never kept on this phone or written to any log.")
             }
-            card("Intelligence") {
+
+            Section {
                 Picker("Model", selection: $assistant.model) {
                     ForEach(models, id: \.1) { Text($0.0).tag($0.1) }
                 }
-                .pickerStyle(.menu)
-                .tint(.white)
-                .onChange(of: assistant.model) { _ in assistant.pushSettings() }
                 Picker("Thinking", selection: $assistant.effort) {
                     ForEach(efforts, id: \.1) { Text($0.0).tag($0.1) }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: assistant.effort) { _ in assistant.pushSettings() }
-                note("Medium is the default. Lower thinks less and answers faster; higher is for harder requests.")
-                Toggle(isOn: $assistant.fast) {
-                    Text("Fast mode").font(.rounded(16, .semibold)).foregroundColor(.white)
-                }
-                .tint(.accent)
-                .onChange(of: assistant.fast) { _ in assistant.pushSettings() }
-                note("Opus answers noticeably faster, at twice the price. Anthropic calls it a research preview.")
+                Toggle("Fast mode", isOn: $assistant.fast)
+            } header: {
+                Text("Intelligence")
+            } footer: {
+                Text("Thinking: Medium is the default; lower answers faster, higher is for harder requests. Fast mode makes Opus answer noticeably faster, at twice the price (a research preview).")
             }
-            card("Voice") {
+            // On this one section only: modifiers on the Group around the sections would be copied onto every section.
+            .onChange(of: assistant.model) { _ in assistant.pushSettings() }
+            .onChange(of: assistant.effort) { _ in assistant.pushSettings() }
+            .onChange(of: assistant.fast) { _ in assistant.pushSettings() }
+
+            Section {
                 Picker("Language", selection: $assistant.language) {
                     ForEach(Self.locales, id: \.0) { Text($0.1).tag($0.0) }
                 }
-                .pickerStyle(.menu)
-                .tint(.white)
                 Picker("Speak replies", selection: $assistant.speakMode) {
                     ForEach(Assistant.SpeakMode.allCases) { Text($0.title).tag($0) }
                 }
-                .pickerStyle(.menu)
-                .tint(.white)
-                note("Speech is turned into text on your iPhone, on the device itself when your language supports it. Only the words go to the TV.")
+            } header: {
+                Text("Voice")
+            } footer: {
+                Text("Speech is turned into text on your iPhone, on the device itself when your language supports it. Only the words go to the TV.")
             }
-            card("Favorites") {
-                if assistant.favorites.isEmpty {
-                    note("Play something, then say \u{201C}add this to my favorites\u{201D}. Favorites become buttons on the Voice screen.")
-                }
+
+            Section {
                 ForEach(assistant.favorites, id: \.self) { f in
-                    listRow(f.name, detail: f.query) { assistant.say("remove \(f.name) from my favorites") }
+                    item(f.name, f.query)
                 }
+                .onDelete { rows in
+                    Haptics.warning()
+                    for i in rows where i < assistant.favorites.count { assistant.say("remove \(assistant.favorites[i].name) from my favorites") }
+                }
+            } header: {
+                Text("Favorites")
+            } footer: {
+                Text(assistant.favorites.isEmpty ? "Play something, then say \u{201C}add this to my favorites\u{201D}. Favorites become buttons on the Voice screen."
+                                                 : "Swipe left on a favorite to remove it.")
             }
-            card("Routines") {
-                if assistant.routines.isEmpty {
-                    note("A routine is a list of things to do in order. Tell the assistant: \u{201C}make a routine called movie night that mutes the TV and opens Plex\u{201D}.")
-                }
+
+            Section {
                 ForEach(assistant.routines, id: \.self) { r in
-                    listRow(r, detail: "Say \u{201C}run my \(r) routine\u{201D}") { assistant.say("delete the \(r) routine") }
+                    item(r, "Say \u{201C}run my \(r) routine\u{201D}")
                 }
+                .onDelete { rows in
+                    Haptics.warning()
+                    for i in rows where i < assistant.routines.count { assistant.say("delete the \(assistant.routines[i]) routine") }
+                }
+            } header: {
+                Text("Routines")
+            } footer: {
+                Text(assistant.routines.isEmpty ? "A routine is a list of things to do in order. Tell the assistant: \u{201C}make a routine called movie night that mutes the TV and opens Plex\u{201D}."
+                                                : "Swipe left on a routine to delete it.")
             }
         }
     }
@@ -204,7 +226,7 @@ struct AssistantSettingsSection: View {
     private var controlText: String {
         switch assistant.tv.adb {
         case "CONNECTED": return "Allowed"
-        case "WAITING_APPROVAL": return "Waiting for you on the TV"
+        case "WAITING_APPROVAL": return "Waiting for you"
         default: return "Not connected"
         }
     }
@@ -219,59 +241,20 @@ struct AssistantSettingsSection: View {
 
     // MARK: pieces
 
-    private func card<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title.uppercased()).font(.rounded(12, .bold)).foregroundColor(.white.opacity(0.45))
-            VStack(alignment: .leading, spacing: 12) { content() }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .glass(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
-    }
-
-    private func row(_ title: String, _ value: String, _ color: Color) -> some View {
-        HStack {
-            Text(title).font(.rounded(16, .semibold)).foregroundColor(.white)
-            Spacer()
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(value).font(.rounded(15)).foregroundColor(.white.opacity(0.65))
-        }
-    }
-
-    private func listRow(_ title: String, detail: String, remove: @escaping () -> Void) -> some View {
+    private func status(_ title: String, symbol: String, tint: Color, value: String, color: Color) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.rounded(16, .semibold)).foregroundColor(.white).lineLimit(1)
-                Text(detail).font(.rounded(13)).foregroundColor(.white.opacity(0.5)).lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Button {
-                Haptics.warning()
-                remove()
-            } label: {
-                Image(systemName: "xmark.circle.fill").font(.system(size: 22)).foregroundColor(.white.opacity(0.35))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Remove \(title)")
-        }
-    }
-
-    private func note(_ text: String) -> some View {
-        Text(text).font(.rounded(13)).foregroundColor(.white.opacity(0.5)).fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func pill(_ title: String, filled: Bool, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.press()
-            action()
-        } label: {
+            SettingsIcon(symbol: symbol, tint: tint)
             Text(title)
-                .font(.rounded(15, .semibold))
-                .foregroundColor(filled ? .black : .white)
-                .padding(.horizontal, 18)
-                .frame(height: 40)
-                .background(Capsule().fill(filled ? Color.white : Color.white.opacity(0.12)))
+            Spacer(minLength: 8)
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(value).foregroundStyle(.secondary).lineLimit(1)
         }
-        .buttonStyle(PressScale())
+    }
+
+    private func item(_ title: String, _ detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title).lineLimit(1)
+            Text(detail).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+        }
     }
 }

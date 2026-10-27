@@ -1,5 +1,6 @@
 import SwiftUI
 
+/// Settings, laid out like the iPhone's own Settings app: a grouped list under a large title, with Done at the top.
 struct SettingsView: View {
     @EnvironmentObject var tv: TV
     @EnvironmentObject var assistant: Assistant
@@ -7,78 +8,49 @@ struct SettingsView: View {
     @State private var host = ""
 
     var body: some View {
-        ZStack {
-            Backdrop()
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
-                    HStack {
-                        Text("Settings").font(.rounded(28, .bold)).foregroundColor(.white)
-                        Spacer()
-                        Button("Done") { dismiss() }
-                            .buttonStyle(.plain)
-                            .font(.rounded(17, .semibold))
-                            .foregroundColor(.accent)
-                    }
+        NavigationShell {
+            Form {
+                AssistantSettingsSection()
 
-                    AssistantSettingsSection()
-
-                    section("WinkBox address") {
-                        HStack(spacing: 12) {
-                            TextField("192.168.1.8", text: $host)
-                                .textFieldStyle(.plain)
-                                .font(.rounded(20, .medium))
-                                .foregroundColor(.white)
-                                .disableAutocorrection(true)
-                                .numberPad()
-                            Button {
-                                Haptics.press()
-                                assistant.host = host.trimmingCharacters(in: .whitespaces)
-                                assistant.stop()
-                                assistant.start()
-                                dismiss()
-                            } label: {
-                                Text("Connect")
-                                    .font(.rounded(15, .semibold))
-                                    .foregroundColor(.black)
-                                    .padding(.horizontal, 16)
-                                    .frame(height: 38)
-                                    .background(Capsule().fill(Color.white))
-                            }
-                            .buttonStyle(PressScale())
+                Section {
+                    HStack(spacing: 12) {
+                        SettingsIcon(symbol: "network", tint: Color(hex: 0x30D158))
+                        TextField("192.168.1.8", text: $host)
+                            .disableAutocorrection(true)
+                            .numberPad()
+                        Button("Connect") {
+                            Haptics.press()
+                            assistant.host = host.trimmingCharacters(in: .whitespaces)
+                            assistant.stop()
+                            assistant.start()
+                            dismiss()
                         }
-                        Text("Found automatically on your Wi-Fi. Only needed if your router blocks that. The address is on the TV in Settings \u{2192} Network.")
-                            .font(.rounded(13))
-                            .foregroundColor(.white.opacity(0.5))
+                        .buttonStyle(.borderless)
+                        .disabled(host.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-
-                    section("How it works") {
-                        Text("Everything runs on the TV. This phone listens, turns your speech into text, and sends the words over your Wi-Fi to the assistant on the TV, which decides what to do and does it. Buttons and typing go the same way. Nothing goes through a computer.")
-                            .font(.rounded(14))
-                            .foregroundColor(.white.opacity(0.7))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Text("WinkBox Remote 2.0")
-                        .font(.rounded(12, .medium))
-                        .foregroundColor(.white.opacity(0.35))
-                        .frame(maxWidth: .infinity)
+                } header: {
+                    Text("WinkBox Address")
+                } footer: {
+                    Text("Found automatically on your Wi-Fi; only needed if your router blocks that. The address is on the TV in Settings \u{2192} Network.")
                 }
-                .padding(22)
+
+                Section {
+                    Text("Everything runs on the TV. This phone listens, turns your speech into text, and sends the words over your Wi-Fi to the assistant on the TV, which decides what to do and does it. Buttons and typing go the same way. Nothing goes through a computer.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } header: {
+                    Text("How It Works")
+                } footer: {
+                    Text("WinkBox Remote 3.0").frame(maxWidth: .infinity).padding(.top, 14)
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
         }
         .onAppear { host = assistant.host }
         .preferredColorScheme(.dark)
-    }
-
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(title.uppercased())
-                .font(.rounded(12, .bold))
-                .foregroundColor(.white.opacity(0.45))
-            VStack(alignment: .leading, spacing: 10) { content() }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .glass(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
     }
 }

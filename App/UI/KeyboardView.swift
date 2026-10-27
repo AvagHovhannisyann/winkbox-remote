@@ -12,9 +12,9 @@ struct KeyboardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Type on TV").font(.rounded(26, .bold)).foregroundColor(.white)
+                Text("Type on TV").font(.sf(26, .bold)).foregroundColor(.white)
                 Text("Select a search box on the TV, then type here.")
-                    .font(.rounded(14))
+                    .font(.sf(14))
                     .foregroundColor(.white.opacity(0.55))
             }
 
@@ -24,7 +24,7 @@ struct KeyboardView: View {
                     .foregroundColor(.accent)
                 TextField("", text: $text)
                     .textFieldStyle(.plain)
-                    .font(.rounded(22, .medium))
+                    .font(.sf(22, .medium))
                     .foregroundColor(.white)
                     .focused($focused)
                     .submitLabel(.search)
@@ -39,7 +39,7 @@ struct KeyboardView: View {
                     .overlay(alignment: .leading) {
                         if text.isEmpty {
                             Text("Movies, shows, channels…")
-                                .font(.rounded(22, .medium))
+                                .font(.sf(22, .medium))
                                 .foregroundColor(.white.opacity(0.3))
                                 .allowsHitTesting(false)
                         }
@@ -67,14 +67,14 @@ struct KeyboardView: View {
                 text = ""
             } label: {
                 Label("Clear the TV's text box", systemImage: "xmark.circle.fill")
-                    .font(.rounded(14, .semibold))
+                    .font(.sf(14, .semibold))
                     .foregroundColor(.white.opacity(0.65))
             }
             .buttonStyle(.plain)
 
             if dropped {
                 Label("Only English letters, numbers and symbols reach the TV.", systemImage: "info.circle")
-                    .font(.rounded(13))
+                    .font(.sf(13))
                     .foregroundColor(.warn)
             }
             Spacer(minLength: 0)
@@ -100,7 +100,7 @@ struct KeyboardView: View {
         } label: {
             VStack(spacing: 6) {
                 Image(systemName: symbol).font(.system(size: 18, weight: .semibold))
-                Text(title).font(.rounded(13, .semibold))
+                Text(title).font(.sf(13, .semibold))
             }
             .foregroundColor(filled ? .black : .white)
             .frame(maxWidth: .infinity)

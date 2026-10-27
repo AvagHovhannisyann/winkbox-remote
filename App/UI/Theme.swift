@@ -21,8 +21,9 @@ extension Color {
 }
 
 extension Font {
-    static func rounded(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .rounded)
+    /// SF Pro, the iPhone's own typeface, at a fixed size.
+    static func sf(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight)
     }
 }
 
@@ -89,12 +90,25 @@ struct Backdrop: View {
     }
 }
 
-/// A frosted glass surface with a hairline highlight along its top edge.
-struct Glass<S: InsettableShape>: ViewModifier {
+/// Liquid Glass on iOS 26 (the system's own material, which lights up under a finger); before that, a frosted surface with a
+/// hairline highlight along its top edge.
+struct GlassSurface<S: InsettableShape>: ViewModifier {
     var shape: S
     var pressed = false
 
     func body(content: Content) -> some View {
+        #if compiler(>=6.2) && os(iOS)
+        if #available(iOS 26.0, *) {
+            content.glassEffect(pressed ? .regular.tint(.white.opacity(0.14)).interactive() : .regular.interactive(), in: shape)
+        } else {
+            frosted(content)
+        }
+        #else
+        frosted(content)
+        #endif
+    }
+
+    private func frosted(_ content: Content) -> some View {
         content
             .background(
                 ZStack {
@@ -112,7 +126,7 @@ struct Glass<S: InsettableShape>: ViewModifier {
 
 extension View {
     func glass<S: InsettableShape>(_ shape: S, pressed: Bool = false) -> some View {
-        modifier(Glass(shape: shape, pressed: pressed))
+        modifier(GlassSurface(shape: shape, pressed: pressed))
     }
 }
 
@@ -172,5 +186,43 @@ extension View {
         #else
         self
         #endif
+    }
+}
+
+/// A navigation stack on the iPhone (large title, a bar with Done); the Mac preview build has none and shows the content alone.
+struct NavigationShell<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        #if os(iOS)
+        NavigationStack { content }
+        #else
+        content
+        #endif
+    }
+}
+
+extension View {
+    /// The iPhone's inset grouped list: the look of the Settings app.
+    @ViewBuilder func groupedList() -> some View {
+        #if os(iOS)
+        self.listStyle(.insetGrouped)
+        #else
+        self
+        #endif
+    }
+}
+
+/// The small rounded-square icons of the Settings app: a white symbol on a coloured tile.
+struct SettingsIcon: View {
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 29, height: 29)
+            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(tint))
     }
 }

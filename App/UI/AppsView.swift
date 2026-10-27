@@ -11,8 +11,8 @@ struct AppsView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Apps").font(.rounded(26, .bold)).foregroundColor(.white)
-                    Text("Tap to open on your TV").font(.rounded(14)).foregroundColor(.white.opacity(0.55))
+                    Text("Apps").font(.sf(26, .bold)).foregroundColor(.white)
+                    Text("Tap to open on your TV").font(.sf(14)).foregroundColor(.white.opacity(0.55))
                 }
                 LazyVGrid(columns: columns, spacing: 18) {
                     ForEach(TVApp.all) { app in
@@ -35,7 +35,7 @@ struct AppsView: View {
             if let name = opening {
                 HStack(spacing: 8) {
                     Image(systemName: "tv").font(.system(size: 13, weight: .bold))
-                    Text("Opening \(name)").font(.rounded(14, .semibold))
+                    Text("Opening \(name)").font(.sf(14, .semibold))
                 }
                 .foregroundColor(.white)
                 .padding(.horizontal, 16)
@@ -74,7 +74,7 @@ struct AppTile: View {
                 .strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
             .shadow(color: .black.opacity(0.45), radius: 12, y: 7)
             Text(app.name)
-                .font(.rounded(14, .semibold))
+                .font(.sf(14, .semibold))
                 .foregroundColor(.white.opacity(0.85))
                 .padding(.leading, 4)
         }
@@ -150,7 +150,7 @@ struct BrandArt: View {
         case "io.github.jqssun.airplay":
             VStack(spacing: 5) {
                 Image(systemName: "airplayvideo").font(.system(size: 28, weight: .medium))
-                Text("WinkBox TV").font(.rounded(12, .semibold)).opacity(0.7)
+                Text("WinkBox TV").font(.sf(12, .semibold)).opacity(0.7)
             }
             .foregroundColor(.white)
         default:
