@@ -359,6 +359,7 @@ struct OrbView: View {
 struct HistoryView: View {
     @EnvironmentObject var assistant: Assistant
     @Environment(\.dismiss) private var dismiss
+    @State private var confirmClear = false
 
     var body: some View {
         ZStack {
@@ -367,6 +368,13 @@ struct HistoryView: View {
                 HStack {
                     Text("History").font(.rounded(28, .bold)).foregroundColor(.white)
                     Spacer()
+                    if !assistant.entries.isEmpty {
+                        Button("Clear") { confirmClear = true }
+                            .buttonStyle(.plain)
+                            .font(.rounded(17, .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                            .padding(.trailing, 14)
+                    }
                     Button("Done") { dismiss() }
                         .buttonStyle(.plain)
                         .font(.rounded(17, .semibold))
@@ -408,6 +416,11 @@ struct HistoryView: View {
                 }
             }
             .padding(22)
+        }
+        .confirmationDialog("Clear the history?", isPresented: $confirmClear, titleVisibility: .visible) {
+            Button("Clear", role: .destructive) { assistant.clearHistory() }
+        } message: {
+            Text("This removes the list on your phone and on your TV.")
         }
         .preferredColorScheme(.dark)
     }
