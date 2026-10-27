@@ -394,6 +394,12 @@ final class Assistant: ObservableObject {
         return ((raw as? [String]) ?? []).map { Chip(label: $0, say: $0.lowercased()) }
     }
 
+    /// Wipes the list of what was asked, here and on the TV.
+    func clearHistory() {
+        entries = []
+        send(["t": "clear_history"])
+    }
+
     // MARK: - Pairing
 
     func beginPairing() {
