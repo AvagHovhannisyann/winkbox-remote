@@ -87,7 +87,7 @@ private struct Header: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("WinkBox")
-                    .font(.rounded(30, .bold))
+                    .font(.sf(30, .bold))
                     .foregroundColor(.white)
                 StatusLine()
             }
@@ -142,7 +142,7 @@ struct StatusLine: View {
                     .frame(width: 8, height: 8)
                     .shadow(color: color.opacity(0.9), radius: 4)
                 Text(text)
-                    .font(.rounded(13, .medium))
+                    .font(.sf(13, .medium))
                     .foregroundColor(.white.opacity(0.6))
                     .lineLimit(1)
             }
@@ -197,7 +197,7 @@ private struct TabBar: View {
         return HStack(spacing: 7) {
             Image(systemName: t.symbol).font(.system(size: 15, weight: .semibold))
             if selected {
-                Text(t.rawValue).font(.rounded(15, .semibold))
+                Text(t.rawValue).font(.sf(15, .semibold))
             }
         }
         .foregroundColor(fg)
@@ -254,10 +254,10 @@ private struct StatusOverlay: View {
                     .foregroundColor(tint)
                     .frame(width: 42, height: 42)
                     .background(Circle().fill(tint.opacity(0.16)))
-                Text(title).font(.rounded(18, .bold)).foregroundColor(.white)
+                Text(title).font(.sf(18, .bold)).foregroundColor(.white)
             }
             Text(text)
-                .font(.rounded(14))
+                .font(.sf(14))
                 .foregroundColor(.white.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)
             actions()
@@ -275,7 +275,7 @@ private struct StatusOverlay: View {
             action()
         } label: {
             Text(title)
-                .font(.rounded(15, .semibold))
+                .font(.sf(15, .semibold))
                 .foregroundColor(filled ? .black : .white)
                 .padding(.horizontal, 18)
                 .frame(height: 40)
@@ -294,7 +294,7 @@ private struct Banner: View {
             if let n = assistant.notice {
                 HStack(spacing: 10) {
                     Image(systemName: "bell.fill").font(.system(size: 14, weight: .bold)).foregroundColor(.accent)
-                    Text(n).font(.rounded(15, .semibold)).foregroundColor(.white)
+                    Text(n).font(.sf(15, .semibold)).foregroundColor(.white)
                 }
                 .padding(.horizontal, 18)
                 .frame(height: 44)

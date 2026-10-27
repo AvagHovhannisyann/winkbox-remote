@@ -46,7 +46,7 @@ struct VoiceView: View {
     private var transcript: some View {
         let idle = assistant.phase == .idle && assistant.transcript.isEmpty
         return Text(idle ? "\u{201C}\(hints[hintIndex])\u{201D}" : assistant.transcript.isEmpty ? " " : assistant.transcript)
-            .font(.rounded(idle ? 22 : 30, .semibold))
+            .font(.sf(idle ? 22 : 30, .semibold))
             .foregroundColor(.white.opacity(idle ? 0.32 : 0.96))
             .multilineTextAlignment(.center)
             .lineLimit(4)
@@ -89,7 +89,7 @@ struct VoiceView: View {
 
     private var statusLine: some View {
         Text(statusText)
-            .font(.rounded(15, .semibold))
+            .font(.sf(15, .semibold))
             .foregroundColor(statusColor)
             .lineLimit(1)
             .frame(height: 22)
@@ -146,12 +146,12 @@ struct VoiceView: View {
         if !assistant.reply.isEmpty, assistant.phase != .listening {
             VStack(alignment: .leading, spacing: 6) {
                 Text(assistant.reply)
-                    .font(.rounded(19, .semibold))
+                    .font(.sf(19, .semibold))
                     .foregroundColor(.white)
                     .fixedSize(horizontal: false, vertical: true)
                 if !assistant.alternative.isEmpty {
                     Text(assistant.alternative)
-                        .font(.rounded(14))
+                        .font(.sf(14))
                         .foregroundColor(.white.opacity(0.6))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -159,7 +159,7 @@ struct VoiceView: View {
                     HStack(spacing: 5) {
                         Image(systemName: assistant.lastSource == "local" ? "bolt.fill" : "cloud.fill").font(.system(size: 10, weight: .bold))
                         Text("\(Self.sourceName(assistant.lastSource)) \u{00B7} \(Self.duration(assistant.lastMs))")
-                            .font(.rounded(11, .medium))
+                            .font(.sf(11, .medium))
                     }
                     .foregroundColor(.white.opacity(0.38))
                     .padding(.top, 2)
@@ -185,7 +185,7 @@ struct VoiceView: View {
                             tapped(item)
                         } label: {
                             Text(item.label)
-                                .font(.rounded(15, .semibold))
+                                .font(.sf(15, .semibold))
                                 .foregroundColor(.white.opacity(0.9))
                                 .padding(.horizontal, 16)
                                 .frame(height: 40)
@@ -205,7 +205,7 @@ struct VoiceView: View {
         HStack(spacing: 10) {
             TextField("Or type a request", text: $draft)
                 .textFieldStyle(.plain)
-                .font(.rounded(16, .medium))
+                .font(.sf(16, .medium))
                 .foregroundColor(.white)
                 .focused($typing)
                 .submitLabel(.send)
@@ -270,7 +270,8 @@ struct VoiceView: View {
     }
 }
 
-/// The orb: one shape that carries the state, drawn the same way as on the TV so the two feel like one product.
+/// The orb: one shape that carries the state. Idle, listening, thinking and speaking are the colours of Apple Intelligence;
+/// done is green with a tick, a failure red, a question violet.
 struct OrbView: View {
     let phase: Assistant.Phase
     let level: Float
@@ -292,28 +293,28 @@ struct OrbView: View {
         switch phase {
         case .idle:
             let breathe = 1 + 0.035 * sin(t * 1.6)
-            orb(&g, c, r * breathe, 0xFFC46B, 0xFF6A2C, 0xE5391B, glow: 0.55, dim: 0.78)
+            siri(&g, c, r * breathe, t, energy: 0.35)
         case .listening:
             for k in 0..<3 {
                 let p = (t * 0.55 + Double(k) / 3).truncatingRemainder(dividingBy: 1)
-                ring(&g, c, r * (1.05 + 1.15 * p), Color(red: 1, green: 0.42, blue: 0.17).opacity((1 - p) * 0.4), 2)
+                ring(&g, c, r * (1.05 + 1.15 * p), Self.violet.opacity((1 - p) * 0.38), 2)
             }
-            orb(&g, c, r * (1 + 0.3 * CGFloat(level)), 0xFFC46B, 0xFF6A2C, 0xE5391B, glow: 1, dim: 1)
+            siri(&g, c, r * (1 + 0.3 * CGFloat(level)), t, energy: 0.7 + Double(level))
         case .thinking, .acting:
             let acting: Bool = { if case .acting = phase { return true } else { return false } }()
-            ring(&g, c, r, .white.opacity(0.14), 3.5)
+            ring(&g, c, r, .white.opacity(0.12), 3.5)
             var arc = Path()
             let a = t * (acting ? 620 : 310)
             arc.addArc(center: c, radius: r, startAngle: .degrees(a), endAngle: .degrees(a + 290), clockwise: false)
-            g.stroke(arc, with: .conicGradient(Gradient(colors: [Color(red: 1, green: 0.42, blue: 0.17).opacity(0), Color(red: 1, green: 0.6, blue: 0.32)]),
-                                               center: c, angle: .degrees(a)), style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-            orb(&g, c, r * (acting ? 0.7 : 0.45 + 0.05 * sin(t * 5)), 0xFFC46B, 0xFF6A2C, 0xE5391B, glow: 0.8, dim: 1)
+            g.stroke(arc, with: .conicGradient(Gradient(colors: [Self.violet.opacity(0), Self.pink, Self.orange]), center: c, angle: .degrees(a)),
+                     style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
+            siri(&g, c, r * (acting ? 0.7 : 0.45 + 0.05 * sin(t * 5)), t * 2.2, energy: 1)
         case .speaking:
             for k in 0..<3 {
                 let w = 0.5 + 0.5 * sin(t * (3 + Double(k)) + Double(k))
-                ring(&g, c, r * (1.12 + 0.16 * CGFloat(k) * CGFloat(w)), Color(red: 1, green: 0.42, blue: 0.17).opacity(0.28 - Double(k) * 0.07), 2)
+                ring(&g, c, r * (1.12 + 0.16 * CGFloat(k) * CGFloat(w)), Self.pink.opacity(0.26 - Double(k) * 0.07), 2)
             }
-            orb(&g, c, r * (1 + 0.05 * sin(t * 9)), 0xFFC46B, 0xFF6A2C, 0xE5391B, glow: 1, dim: 1)
+            siri(&g, c, r * (1 + 0.05 * sin(t * 9)), t * 1.6, energy: 0.9)
         case .done(let ok):
             if ok {
                 let spring = 1 - exp(-6 * st) * cos(14 * st)
@@ -340,6 +341,40 @@ struct OrbView: View {
         }
     }
 
+    static let violet = Color(hex: 0x8B5CF6)
+    static let pink = Color(hex: 0xFF5FA2)
+    static let orange = Color(hex: 0xFF9F45)
+    static let blue = Color(hex: 0x3B82F6)
+    static let cyan = Color(hex: 0x38D9F5)
+
+    /// The orb in the colours of Apple Intelligence: soft blobs of violet, pink, orange, blue and cyan drifting around inside a
+    /// glassy sphere, faster and brighter with `energy` (0 calm, 1 busy).
+    private func siri(_ g: inout GraphicsContext, _ c: CGPoint, _ r: CGFloat, _ t: Double, energy: Double) {
+        let e = min(1.5, max(0, energy))
+        let glow = CGRect(x: c.x - r * 2.3, y: c.y - r * 2.3, width: r * 4.6, height: r * 4.6)
+        g.fill(Path(ellipseIn: glow), with: .radialGradient(Gradient(colors: [Self.violet.opacity(0.28 + 0.18 * e), Self.pink.opacity(0.10 + 0.06 * e), .clear]),
+                                                         center: c, startRadius: r * 0.6, endRadius: r * 2.3))
+        let ball = Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
+        g.drawLayer { layer in
+            layer.clip(to: ball)
+            layer.fill(ball, with: .color(Color(hex: 0x1A1033)))
+            layer.addFilter(.blur(radius: r * 0.28))
+            let colors: [Color] = [Self.violet, Self.pink, Self.orange, Self.blue, Self.cyan]
+            for (i, col) in colors.enumerated() {
+                let speed = 0.45 + 0.12 * Double(i) + 0.5 * e
+                let a = t * speed + Double(i) * 1.257
+                let p = CGPoint(x: c.x + CGFloat(cos(a)) * r * 0.42, y: c.y + CGFloat(sin(a * 1.3 + Double(i))) * r * 0.42)
+                let br = r * (0.62 + 0.08 * CGFloat(sin(t * 1.7 + Double(i))))
+                layer.fill(Path(ellipseIn: CGRect(x: p.x - br, y: p.y - br, width: br * 2, height: br * 2)), with: .color(col.opacity(0.92)))
+            }
+        }
+        // Glass: a bright crescent at the top left and a thin rim.
+        g.fill(ball, with: .radialGradient(Gradient(colors: [.white.opacity(0.42), .white.opacity(0.06), .clear]),
+                                           center: CGPoint(x: c.x - r * 0.38, y: c.y - r * 0.45), startRadius: 0, endRadius: r * 0.95))
+        g.stroke(ball, with: .linearGradient(Gradient(colors: [.white.opacity(0.55), .white.opacity(0.08)]),
+                                             startPoint: CGPoint(x: c.x, y: c.y - r), endPoint: CGPoint(x: c.x, y: c.y + r)), lineWidth: 1.2)
+    }
+
     private func ring(_ g: inout GraphicsContext, _ c: CGPoint, _ radius: CGFloat, _ color: Color, _ width: CGFloat) {
         g.stroke(Path(ellipseIn: CGRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2)), with: .color(color), lineWidth: width)
     }
@@ -355,39 +390,27 @@ struct OrbView: View {
     }
 }
 
-/// What was asked and what happened, newest first. Tap one to do it again.
+/// What was asked and what happened, newest first, as a native list. Tap one to do it again.
 struct HistoryView: View {
     @EnvironmentObject var assistant: Assistant
     @Environment(\.dismiss) private var dismiss
     @State private var confirmClear = false
 
     var body: some View {
-        ZStack {
-            Backdrop()
-            VStack(alignment: .leading, spacing: 16) {
-                HStack {
-                    Text("History").font(.rounded(28, .bold)).foregroundColor(.white)
-                    Spacer()
-                    if !assistant.entries.isEmpty {
-                        Button("Clear") { confirmClear = true }
-                            .buttonStyle(.plain)
-                            .font(.rounded(17, .medium))
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(.trailing, 14)
-                    }
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.plain)
-                        .font(.rounded(17, .semibold))
-                        .foregroundColor(.accent)
-                }
+        NavigationShell {
+            List {
                 if assistant.entries.isEmpty {
-                    Text("Nothing yet. Tap the orb and say something.")
-                        .font(.rounded(16))
-                        .foregroundColor(.white.opacity(0.55))
-                        .padding(.top, 20)
-                }
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
+                    Section {
+                        VStack(spacing: 10) {
+                            Image(systemName: "waveform").font(.system(size: 34, weight: .semibold)).foregroundStyle(.secondary)
+                            Text("No Requests Yet").font(.headline)
+                            Text("Tap the orb and say something to your TV.").font(.subheadline).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 28)
+                    }
+                } else {
+                    Section {
                         ForEach(assistant.entries) { e in
                             Button {
                                 Haptics.press()
@@ -397,28 +420,33 @@ struct HistoryView: View {
                                 HStack(alignment: .top, spacing: 12) {
                                     Image(systemName: e.ok ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                                         .font(.system(size: 20))
-                                        .foregroundColor(e.ok ? .live : .danger)
+                                        .foregroundStyle(e.ok ? Color.live : Color.danger)
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(e.said).font(.rounded(17, .semibold)).foregroundColor(.white).multilineTextAlignment(.leading)
-                                        Text(e.reply).font(.rounded(14)).foregroundColor(.white.opacity(0.6)).multilineTextAlignment(.leading)
+                                        Text(e.said).font(.body.weight(.semibold)).foregroundStyle(.primary).multilineTextAlignment(.leading)
+                                        Text(e.reply).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                                         Text("\(VoiceView.sourceName(e.source)) \u{00B7} \(VoiceView.duration(e.ms))")
-                                            .font(.rounded(11, .medium)).foregroundColor(.white.opacity(0.35))
+                                            .font(.caption).foregroundStyle(.tertiary)
                                     }
-                                    Spacer(minLength: 0)
                                 }
-                                .padding(14)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .glass(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .padding(.vertical, 3)
                             }
-                            .buttonStyle(PressScale())
                         }
+                    } footer: {
+                        Text("Tap a request to do it again.")
                     }
                 }
             }
-            .padding(22)
+            .groupedList()
+            .navigationTitle("History")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    if !assistant.entries.isEmpty { Button("Clear", role: .destructive) { confirmClear = true } }
+                }
+            }
         }
         .confirmationDialog("Clear the history?", isPresented: $confirmClear, titleVisibility: .visible) {
-            Button("Clear", role: .destructive) { assistant.clearHistory() }
+            Button("Clear History", role: .destructive) { assistant.clearHistory() }
         } message: {
             Text("This removes the list on your phone and on your TV.")
         }

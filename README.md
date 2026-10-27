@@ -33,6 +33,10 @@ The app is built without Xcode on the user's Mac: every push to `main` builds it
 [build-log](../../releases/tag/build-log) release. `build.sh` can also build locally, either with Xcode or with the Mac's
 Command Line Tools plus the iPhone SDK pulled out of an Xcode .xip by `Tools/extract-sdk.py`.
 
+The build runs on GitHub's macOS 26 machines (Xcode 26, the iOS 26 SDK): on iOS 26 every glass surface (the keys, the tab bar,
+the cards) is Apple's Liquid Glass and the Settings and History screens are the system's own grouped lists; on iOS 16 to 18 the
+same screens fall back to frosted materials.
+
 There are no image files: the app tiles are drawn in SwiftUI (`BrandArt` in `App/UI/AppsView.swift`) and the app icon is
 drawn by `Tools/icon/main.swift` during the build. `Tools/preview` renders every screen on a Mac, in every state, to
 check the design without a phone.

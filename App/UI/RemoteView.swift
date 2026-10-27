@@ -60,7 +60,7 @@ private struct ModePicker: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: symbol).font(.system(size: 11, weight: .bold))
-                Text(title).font(.rounded(13, .semibold))
+                Text(title).font(.sf(13, .semibold))
             }
             .foregroundColor(mode == value ? .black : .white.opacity(0.7))
             .padding(.horizontal, 14)
@@ -117,7 +117,7 @@ struct ClickPad: View {
 
                 if touch == nil {
                     Text("Swipe to move · Tap to select")
-                        .font(.rounded(12, .medium))
+                        .font(.sf(12, .medium))
                         .foregroundColor(.white.opacity(0.28))
                         .position(x: size.width / 2, y: size.height / 2 + 62)
                 }
@@ -137,9 +137,9 @@ struct ClickPad: View {
         let lit = flash == key
         return Image(systemName: Self.symbol(key))
             .font(.system(size: 15, weight: .bold))
-            .foregroundColor(lit ? .accent : .white.opacity(0.28))
+            .foregroundColor(lit ? .white : .white.opacity(0.28))
             .scaleEffect(lit ? 1.4 : 1)
-            .shadow(color: lit ? Color.accent.opacity(0.9) : .clear, radius: 10)
+            .shadow(color: lit ? Color.white.opacity(0.8) : .clear, radius: 10)
     }
 
     static func symbol(_ key: RemoteKey) -> String {
@@ -248,13 +248,13 @@ struct DPad: View {
                         .fill(Color.white.opacity(pressed == key ? 0.10 : 0))
                     Image(systemName: ClickPad.symbol(key))
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(pressed == key ? .accent : .white.opacity(0.75))
-                        .shadow(color: pressed == key ? Color.accent.opacity(0.8) : .clear, radius: 8)
+                        .foregroundColor(pressed == key ? .white : .white.opacity(0.75))
+                        .shadow(color: pressed == key ? Color.white.opacity(0.7) : .clear, radius: 8)
                         .offset(x: cos(Self.angle(key) * .pi / 180) * d * 0.355,
                                 y: sin(Self.angle(key) * .pi / 180) * d * 0.355)
                 }
                 Text("OK")
-                    .font(.rounded(21, .bold))
+                    .font(.sf(21, .bold))
                     .foregroundColor(.white)
                     .frame(width: d * 0.38, height: d * 0.38)
                     .glass(Circle(), pressed: pressed == .select)
